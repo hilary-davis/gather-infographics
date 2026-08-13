@@ -1,6 +1,6 @@
-# Gather Signal — Infographic Builder
+# Gather Signal — Infographic Maker
 
-A small web tool that builds on-brand Gather Signal infographics (bar, horizontal
+A small web tool that builds on-brand Gather infographics (bar, horizontal
 bar, line, pie, donut, area, and a big-number stat callout) and downloads them as
 PNGs sized for the monthly long-form article.
 
@@ -41,13 +41,14 @@ The tool stamps it in the lower-right of every export. Until it's there, exports
 simply omit the wordmark (nothing breaks). Use your real PNG — don't recreate it.
 
 ## Publishing to GitHub Pages (turns this folder into a URL)
-1. Create a new repository at github.com/hdavis-ship-it (e.g. "gather-signal-infographics"). Public.
+1. Create a new repository at github.com/hilary-davis named "gather-infographics". Public.
 2. Upload the CONTENTS of this folder (index.html, vendor/, fonts/, assets/) to the repo.
    (On github.com: "Add file" → "Upload files" → drag everything in → Commit.)
 3. In the repo: Settings → Pages → "Build and deployment" → Source: "Deploy from a branch",
    Branch: main, folder: / (root) → Save.
-4. Wait ~1 minute. GitHub shows the live URL (like https://hdavis-ship-it.github.io/gather-signal-infographics/).
-   Bookmark it — that's your tool.
+4. Wait ~1 minute. The live URL will be:
+   https://hilary-davis.github.io/gather-infographics/
+   Bookmark it — that's your tool. Share that link with the team; no install, no login.
 
 Tip: run exports from the published URL (not by double-clicking the local file); the
 font embeds reliably over the web.

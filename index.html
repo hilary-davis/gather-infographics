@@ -724,7 +724,13 @@
       return e;
     }
     function renderPieDonut(holder, isDonut) {
-      var W = 840, H = 412, cx = W / 2, cy = 196, R = 168;
+      /* Geometry note: percentage labels sit at (R + LABEL_GAP) from the centre, so the
+         canvas must clear that radius PLUS half a line of text on every side, or the
+         top/bottom labels clip. cy and H are derived from R so this can't drift again. */
+      var W = 840, R = 168, LABEL_GAP = 26, LABEL_HALF = 12, PAD = 4;
+      var cx = W / 2;
+      var cy = R + LABEL_GAP + LABEL_HALF + PAD;          /* 210 */
+      var H  = cy + R + LABEL_GAP + LABEL_HALF + PAD;     /* 420 */
       var innerR = isDonut ? R * 0.60 : 0;
       var total = 0;
       state.rows.forEach(function (r) { var v = parseFloat(r.value) || 0; if (v > 0) total += v; });
