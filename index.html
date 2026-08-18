@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Gather Signal — Infographic Maker</title>
+<title>Gather Infographics Tool</title>
 
 <!-- Merriweather (brand serif). Arial is a system font. -->
 
@@ -345,8 +345,8 @@
 
   <!-- ===================== CONTROLS ===================== -->
   <aside class="panel">
-    <h1>Gather Signal</h1>
-    <p class="sub">Infographic maker · make an on-brand chart, download a PNG</p>
+    <h1>Gather Infographics Tool</h1>
+    <p class="sub">Make an on-brand chart, download a PNG</p>
 
     <div class="field">
       <label>Chart type</label>
@@ -413,14 +413,6 @@
     </div>
 
     <div class="field">
-      <label>Wordmark</label>
-      <div class="toggle-row">
-        <input type="checkbox" id="in-wordmark" checked />
-        <label for="in-wordmark" style="font-weight:400;font-size:12px;text-transform:none;letter-spacing:0;color:var(--impact-black);margin:0;">Show Signal wordmark on export</label>
-      </div>
-    </div>
-
-    <div class="field">
       <label>Export</label>
       <button class="download" id="download">Download PNG</button>
       <p class="hint" id="export-note"></p>
@@ -471,7 +463,7 @@
       title: "Where Gatherers spend their week",
       subtitle: "",
       source: "",
-      wordmark: true,
+      wordmark: true,        /* always on — the toggle was removed from the UI */
       highlight: -1,
       compare: false,
       series1: "This year",
@@ -1093,7 +1085,7 @@
       $("in-xaxis").oninput = function () { state.xAxis = this.value; render(); };
       $("in-yaxis").oninput = function () { state.yAxis = this.value; render(); };
       $("in-source").oninput = function () { state.source = this.value; render(); };
-      $("in-wordmark").onchange = function () { state.wordmark = this.checked; render(); };
+      /* wordmark toggle removed — the wordmark is always stamped on export */
 
       $("add-row").onclick = function () {
         state.rows.push({ label: "New", value: 0 }); renderRows(); render();
