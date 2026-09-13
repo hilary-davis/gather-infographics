@@ -129,7 +129,19 @@
     padding: 0;
     color: var(--better-gray);
   }
-  .row .hl.on {
+  .series-row { display: grid; grid-template-columns: 1fr 30px; gap: 5px; margin-bottom: 6px; }
+  .series-row .hl {
+    border: 1px solid #d3d3d3;
+    background: var(--pure-white);
+    border-radius: 4px;
+    height: 30px;
+    cursor: pointer;
+    font-size: 13px;
+    line-height: 1;
+    padding: 0;
+    color: var(--better-gray);
+  }
+  .series-row .hl.on, .row .hl.on {
     background: var(--signal-blue);
     border-color: var(--signal-blue);
     color: #fff;
@@ -221,8 +233,8 @@
     position: relative;
     margin-top: 56px;          /* breathing room between title and chart */
     /* point Carbon's font at Merriweather */
-    --cds-charts-font-family: 'Merriweather', serif;
-    --cds-charts-font-family-condensed: 'Merriweather', serif;
+    --cds-charts-font-family: Arial, Helvetica, sans-serif;
+    --cds-charts-font-family-condensed: Arial, Helvetica, sans-serif;
   }
   /* Carbon Charts reads these design tokens for backgrounds, axes, and text.
      Without them it falls back to a black plot area. Map them to Signal. */
@@ -290,6 +302,14 @@
   /* Axis titles: match the gray of the data (tick) labels, normal weight
      (the ALL-CAPS comes from uppercasing the text itself). */
   #card .axis-title { fill: #525252; font-weight: 400; }
+  /* Carbon's axis text defaults to "IBM Plex Sans Condensed", which is installed
+     almost nowhere — so it silently substituted a different font (and different
+     metrics) in the browser and again in Illustrator. Pin it to the brand label font. */
+  #card .axis text, #card .cds--cc--axes text { font-family: Arial, Helvetica, sans-serif; }
+  /* Nothing inside the Carbon chart should request a non-brand font. (The
+     hand-drawn pie/donut sits outside .cds--chart-holder and keeps Merriweather
+     for its centre figure.) */
+  #card .cds--chart-holder, #card .cds--chart-holder * { font-family: Arial, Helvetica, sans-serif; }
   /* Data (tick) labels: bump to 16px (Carbon body-02) for mobile legibility.
      Export inlines each node's computed font-size, so this carries into the PNG. */
   #card .axis .tick text { font-size: 16px !important; }
@@ -383,15 +403,20 @@
     </div>
 
     <div class="field" id="compare-field">
-      <label>Comparison <span style="color:var(--better-gray);font-weight:400;text-transform:none;letter-spacing:0">(bar &amp; line)</span></label>
-      <div class="toggle-row">
-        <input type="checkbox" id="in-compare" />
-        <label for="in-compare" style="font-weight:400;font-size:12px;text-transform:none;letter-spacing:0;color:var(--impact-black);margin:0;">Compare a second data set</label>
-      </div>
+      <label>Data sets <span style="color:var(--better-gray);font-weight:400;text-transform:none;letter-spacing:0">(bar &amp; line)</span></label>
+      <select id="in-seriescount">
+        <option value="1">1 — single set</option>
+        <option value="2">2 — compare two</option>
+        <option value="3">3 — compare three</option>
+        <option value="4">4 — compare four</option>
+      </select>
       <div id="series-names" style="display:none;margin-top:8px;">
-        <input type="text" id="in-series1" placeholder="First set name (orange)" style="margin-bottom:6px;" />
-        <input type="text" id="in-series2" placeholder="Second set name (blue)" />
+        <div class="series-row" id="srow1"><input type="text" id="in-series1" placeholder="Set 1 name" /><button class="hl" id="hl-series1" title="Make this set Signal Blue">&#9670;</button></div>
+        <div class="series-row" id="srow2"><input type="text" id="in-series2" placeholder="Set 2 name" /><button class="hl" id="hl-series2" title="Make this set Signal Blue">&#9670;</button></div>
+        <div class="series-row" id="srow3"><input type="text" id="in-series3" placeholder="Set 3 name" /><button class="hl" id="hl-series3" title="Make this set Signal Blue">&#9670;</button></div>
+        <div class="series-row" id="srow4"><input type="text" id="in-series4" placeholder="Set 4 name" /><button class="hl" id="hl-series4" title="Make this set Signal Blue">&#9670;</button></div>
       </div>
+      <p class="hint">Click ◈ to make one set Signal Blue.</p>
     </div>
 
     <div class="field">
@@ -403,8 +428,9 @@
 
     <div class="field">
       <label>Paste from a spreadsheet <span style="color:var(--better-gray);font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></label>
-      <textarea id="in-paste" placeholder="Label &lt;tab or comma&gt; value, one per line&#10;Design	42&#10;Data	28&#10;Ops	17"></textarea>
+      <textarea id="in-paste" placeholder="Paste cells straight from a spreadsheet &#8212; header row and up to 4 number columns.&#10;Region	Q1	Q2	Q3	Q4&#10;North	42,000	47,500	51,200	60,300"></textarea>
       <button class="mini-btn" id="apply-paste">Fill rows from paste</button>
+      <p class="hint" id="paste-note"></p>
     </div>
 
     <div class="field">
@@ -415,6 +441,7 @@
     <div class="field">
       <label>Export</label>
       <button class="download" id="download">Download PNG</button>
+      <button class="download" id="download-svg" style="margin-top:8px;background:var(--impact-black);">Download SVG</button>
       <p class="hint" id="export-note"></p>
     </div>
   </aside>
@@ -465,26 +492,40 @@
       source: "",
       wordmark: true,        /* always on — the toggle was removed from the UI */
       highlight: -1,
-      compare: false,
-      series1: "This year",
-      series2: "Last year",
+      seriesCount: 1,
+      seriesHighlight: -1,
+      seriesNames: ["Q1", "Q2", "Q3", "Q4"],
       xAxis: "",
       yAxis: "",
       rows: [
-        { label: "Design", value: 42, value2: 36 },
-        { label: "Data", value: 28, value2: 22 },
-        { label: "Ops", value: 17, value2: 20 },
-        { label: "Content", value: 13, value2: 15 }
+        { label: "Design", vals: [42, 36, 0, 0] },
+        { label: "Data", vals: [28, 22, 0, 0] },
+        { label: "Ops", vals: [17, 20, 0, 0] },
+        { label: "Content", vals: [13, 15, 0, 0] }
       ]
     };
 
-    // series colors when comparing two datasets (orange vs Signal Blue)
-    var SERIES1_COLOR = "#EE4B22";
-    var SERIES2_COLOR = "#64A4E9";
-    function s1name() { return state.series1 || "Series 1"; }
-    function s2name() { return state.series2 || "Series 2"; }
+    // up to four comparison sets. First two keep the original orange/blue pairing.
+    var MAX_SERIES = 4;
+    // 2 sets = the orange/blue contrast pair. 3-4 sets step through the tint ramp
+    // (sequential data like quarters reads better as a progression), with Signal
+    // Blue anchoring the last set.
+    function seriesPalette(n) {
+      if (n <= 2) return ["#EE4B22", "#64A4E9"];
+      if (n === 3) return ["#980000", "#EE4B22", "#F5937A"];
+      return ["#980000", "#EE4B22", "#F5937A", "#F8B7A7"];
+    }
+    function seriesColor(i) {
+      if (i === state.seriesHighlight) return SIGNAL_BLUE;   // ◈ toggle
+      var p = seriesPalette(nSeries());
+      return p[i % p.length];
+    }
+    function sName(i) { return (state.seriesNames[i] || "").trim() || ("Set " + (i + 1)); }
+    function seriesCount() { return Math.max(1, Math.min(MAX_SERIES, state.seriesCount || 1)); }
     function compareAllowed() { return ["bar", "barh", "line"].indexOf(state.type) !== -1; }
-    function comparing() { return state.compare && compareAllowed(); }
+    function comparing() { return seriesCount() > 1 && compareAllowed(); }
+    function nSeries() { return comparing() ? seriesCount() : 1; }
+    function rowVal(r, i) { var v = (r.vals || [])[i]; v = parseFloat(v); return isNaN(v) ? 0 : v; }
 
     var chart = null;
     var $ = function (id) { return document.getElementById(id); };
@@ -493,36 +534,37 @@
     function renderRows() {
       var wrap = $("rows");
       wrap.innerHTML = "";
+      var n = nSeries();
       var cmp = comparing();
+      var vw = n >= 4 ? 42 : (n === 3 ? 50 : (n === 2 ? 58 : 78));
       state.rows.forEach(function (r, i) {
+        if (!r.vals) r.vals = [0, 0, 0, 0];
         var row = document.createElement("div");
         row.className = "row";
-        row.style.gridTemplateColumns = cmp ? "1fr 58px 58px 26px" : "1fr 78px 26px 26px";
+        row.style.gridTemplateColumns = "1fr " + new Array(n + 1).join(vw + "px ") +
+          (cmp ? "26px" : "26px 26px");
 
         var lab = document.createElement("input");
         lab.type = "text"; lab.value = r.label; lab.placeholder = "Label";
         lab.oninput = function () { state.rows[i].label = lab.value; render(); };
+        row.appendChild(lab);
 
-        var val = document.createElement("input");
-        val.type = "text"; val.value = r.value; val.placeholder = "0";
-        val.title = cmp ? s1name() : "";
-        val.oninput = function () {
-          var n = parseFloat(val.value.replace(/[^0-9.\-]/g, ""));
-          state.rows[i].value = isNaN(n) ? 0 : n; render();
-        };
+        for (var k = 0; k < n; k++) {
+          (function (k) {
+            var val = document.createElement("input");
+            val.type = "text";
+            val.value = (r.vals[k] == null ? "" : r.vals[k]);
+            val.placeholder = "0";
+            if (cmp) val.title = sName(k);
+            val.oninput = function () {
+              var num = parseFloat(val.value.replace(/[^0-9.\-]/g, ""));
+              state.rows[i].vals[k] = isNaN(num) ? 0 : num; render();
+            };
+            row.appendChild(val);
+          })(k);
+        }
 
-        row.appendChild(lab); row.appendChild(val);
-
-        if (cmp) {
-          var val2 = document.createElement("input");
-          val2.type = "text"; val2.value = (r.value2 == null ? "" : r.value2); val2.placeholder = "0";
-          val2.title = s2name();
-          val2.oninput = function () {
-            var n = parseFloat(val2.value.replace(/[^0-9.\-]/g, ""));
-            state.rows[i].value2 = isNaN(n) ? 0 : n; render();
-          };
-          row.appendChild(val2);
-        } else {
+        if (!cmp) {
           var hl = document.createElement("button");
           hl.className = "hl" + (state.highlight === i ? " on" : "");
           hl.title = "Highlight in Signal Blue";
@@ -541,7 +583,6 @@
           else if (state.highlight > i) state.highlight--;
           renderRows(); render();
         };
-
         row.appendChild(del);
         wrap.appendChild(row);
       });
@@ -621,7 +662,7 @@
 
     /* ---------- chart builders ---------- */
     function buildBar(horizontal) {
-      var data = state.rows.map(function (r) { return { group: r.label, value: r.value }; });
+      var data = state.rows.map(function (r) { return { group: r.label, value: rowVal(r, 0) }; });
       var valueAxis = { mapsTo: "value" };
       var labelAxis = { mapsTo: "group", scaleType: "labels" };
       var options = {
@@ -639,7 +680,7 @@
 
     function buildLineOrArea(isArea) {
       var data = state.rows.map(function (r) {
-        return { group: "Series", key: r.label, value: r.value };
+        return { group: "Series", key: r.label, value: rowVal(r, 0) };
       });
       var options = {
         axes: applyAxisTitles({
@@ -656,21 +697,24 @@
       return { Cls: Cls, config: { data: data, options: options } };
     }
 
-    // two-set comparison colour scale (orange vs Signal Blue)
+    // comparison colour scale for however many sets are active
     function seriesColorScale() {
       var scale = {};
-      scale[s1name()] = SERIES1_COLOR;
-      scale[s2name()] = SERIES2_COLOR;
+      for (var i = 0; i < nSeries(); i++) scale[sName(i)] = seriesColor(i);
       return scale;
+    }
+    // flat rows: one entry per (series, category)
+    function seriesData() {
+      var data = [], n = nSeries();
+      state.rows.forEach(function (r) {
+        for (var i = 0; i < n; i++) data.push({ group: sName(i), key: r.label, value: rowVal(r, i) });
+      });
+      return data;
     }
 
     // grouped bar: two bars per category
     function buildGroupedBar(horizontal) {
-      var s1 = s1name(), s2 = s2name(), data = [];
-      state.rows.forEach(function (r) {
-        data.push({ group: s1, key: r.label, value: parseFloat(r.value) || 0 });
-        data.push({ group: s2, key: r.label, value: parseFloat(r.value2) || 0 });
-      });
+      var data = seriesData();
       var valueAxis = { mapsTo: "value" };
       var labelAxis = { mapsTo: "key", scaleType: "labels" };
       var options = {
@@ -688,11 +732,7 @@
 
     // two-line comparison
     function buildLineCompare() {
-      var s1 = s1name(), s2 = s2name(), data = [];
-      state.rows.forEach(function (r) {
-        data.push({ group: s1, key: r.label, value: parseFloat(r.value) || 0 });
-        data.push({ group: s2, key: r.label, value: parseFloat(r.value2) || 0 });
-      });
+      var data = seriesData();
       var options = {
         axes: applyAxisTitles({
           bottom: { mapsTo: "key", scaleType: "labels" },
@@ -725,13 +765,13 @@
       var H  = cy + R + LABEL_GAP + LABEL_HALF + PAD;     /* 420 */
       var innerR = isDonut ? R * 0.60 : 0;
       var total = 0;
-      state.rows.forEach(function (r) { var v = parseFloat(r.value) || 0; if (v > 0) total += v; });
+      state.rows.forEach(function (r) { var v = rowVal(r, 0); if (v > 0) total += v; });
       if (total <= 0) total = 1;
 
       var svg = svgEl("svg", { width: W, height: H, viewBox: "0 0 " + W + " " + H });
       var a0 = -Math.PI / 2;
       state.rows.forEach(function (r, i) {
-        var v = parseFloat(r.value) || 0;
+        var v = rowVal(r, 0);
         if (v <= 0) return;
         var frac = v / total, a1 = a0 + frac * 2 * Math.PI, mid = (a0 + a1) / 2;
         var large = (a1 - a0) > Math.PI ? 1 : 0;
@@ -770,7 +810,7 @@
       leg.style.cssText = "display:flex;flex-wrap:wrap;justify-content:center;gap:8px 18px;margin-top:6px;" +
                           "font-family:Arial,sans-serif;font-size:16px;color:#404040;";
       state.rows.forEach(function (r, i) {
-        var v = parseFloat(r.value) || 0; if (v <= 0) return;
+        var v = rowVal(r, 0); if (v <= 0) return;
         var item = document.createElement("span");
         item.style.cssText = "display:inline-flex;align-items:center;gap:6px;";
         var sw = document.createElement("span");
@@ -798,7 +838,8 @@
         big.className = "stat-big";
         big.style.fontSize = bigSize + "px";
         big.style.color = (state.highlight === i) ? SIGNAL_BLUE : STAT_RAMP[i % STAT_RAMP.length];
-        big.textContent = (r.value === "" || r.value == null) ? "—" : r.value;
+        var sv = (r.vals || [])[0];
+        big.textContent = (sv === "" || sv == null) ? "—" : sv;
         var lab = document.createElement("p");
         lab.className = "stat-label";
         lab.style.fontSize = labelSize + "px";
@@ -911,15 +952,16 @@
           lg.style.cssText = "margin-top:" + (state.xAxis ? 28 : 32) +
             "px;display:flex;align-items:center;flex-wrap:wrap;gap:6px 18px;" +
             "font:400 16px Arial,sans-serif;color:#404040;";
-          [[s1name(), SERIES1_COLOR], [s2name(), SERIES2_COLOR]].forEach(function (p) {
+          for (var si = 0; si < nSeries(); si++) {
             var item = document.createElement("span");
             item.style.cssText = "display:inline-flex;align-items:center;gap:6px;";
             var sw = document.createElement("span");
-            sw.style.cssText = "width:12px;height:12px;border-radius:2px;flex:none;background:" + p[1] + ";";
+            sw.style.cssText = "width:12px;height:12px;border-radius:2px;flex:none;background:" +
+              seriesColor(si) + ";";
             item.appendChild(sw);
-            item.appendChild(document.createTextNode(p[0]));
+            item.appendChild(document.createTextNode(sName(si)));
             lg.appendChild(item);
-          });
+          }
           holder.appendChild(lg);
         }
         // Carbon renders asynchronously, so align once now and again shortly after —
@@ -943,36 +985,111 @@
     /* ---------- comparison controls visibility ---------- */
     function updateCompareUI() {
       $("compare-field").style.display = compareAllowed() ? "" : "none";
-      $("series-names").style.display = (state.compare && compareAllowed()) ? "block" : "none";
+      $("series-names").style.display = comparing() ? "block" : "none";
       $("data-hint").style.display = comparing() ? "none" : "";
+      for (var i = 1; i <= 4; i++) {
+        $("srow" + i).style.display = (comparing() && i <= seriesCount()) ? "" : "none";
+        $("hl-series" + i).className = "hl" + (state.seriesHighlight === i - 1 ? " on" : "");
+      }
       // axis labels only apply to cartesian charts
       $("axis-field").style.display =
         (["bar", "barh", "line", "area"].indexOf(state.type) !== -1) ? "" : "none";
     }
 
     /* ---------- paste parsing ---------- */
-    function applyPaste() {
-      var raw = $("in-paste").value.trim();
-      if (!raw) return;
-      var lines = raw.split(/\r?\n/);
-      var out = [];
-      lines.forEach(function (ln) {
-        if (!ln.trim()) return;
-        var parts = ln.split(/\t|,/);
-        if (parts.length < 2) {
-          // maybe "Label 42" separated by spaces
-          var m = ln.match(/^(.*?)[\s]+([\-0-9.]+)\s*$/);
-          if (m) parts = [m[1], m[2]];
-        }
-        var label = (parts[0] || "").trim();
-        var num = parseFloat((parts[1] || "").replace(/[^0-9.\-]/g, ""));
-        if (label) out.push({ label: label, value: isNaN(num) ? 0 : num });
-      });
-      if (out.length) {
-        state.rows = out;
-        state.highlight = -1;
-        renderRows(); render();
+    // Accepts a real spreadsheet paste: tab-separated cells, 1,234-style thousands,
+    // $ / % / (negatives), a header row, and Total/Average rows.
+    function parseNum(v) {
+      if (v == null) return NaN;
+      var t = String(v).trim();
+      if (!t) return NaN;
+      var neg = /^\(.*\)$/.test(t);
+      t = t.replace(/^\(|\)$/g, "").trim();
+      t = t.replace(/[$£€%\s,]/g, "");
+      if (!/^[+-]?\d*\.?\d+$/.test(t)) return NaN;   // "Q1" must NOT parse as 1
+      var n = parseFloat(t);
+      if (isNaN(n)) return NaN;
+      return neg ? -n : n;
+    }
+    function splitCells(line) {
+      if (line.indexOf("\t") !== -1) {
+        return line.split("\t").map(function (c) { return c.trim(); });
       }
+      // comma fallback: rejoin thousands groups so "42,000" stays one number
+      var parts = line.split(",").map(function (c) { return c.trim(); }), out = [];
+      parts.forEach(function (p) {
+        var prev = out[out.length - 1];
+        if (prev !== undefined && /^\d{3}$/.test(p) && /^[+-]?[\d.]+$/.test(prev)) {
+          out[out.length - 1] = prev + p;
+        } else out.push(p);
+      });
+      return out;
+    }
+
+    function applyPaste() {
+      var note = $("paste-note");
+      var raw = $("in-paste").value.replace(/\u00a0/g, " ").replace(/\s+$/, "");
+      if (!raw.trim()) { note.textContent = ""; return; }
+
+      var rows = raw.split(/\r?\n/).map(splitCells).filter(function (c) {
+        return c.some(function (x) { return x !== ""; });
+      });
+      if (!rows.length) { note.textContent = "Nothing readable in that paste."; return; }
+
+      // header row = first row whose later cells aren't numbers
+      var headers = null;
+      if (rows.length > 1) {
+        var firstNums = rows[0].slice(1).filter(function (c) { return !isNaN(parseNum(c)); }).length;
+        if (firstNums === 0) headers = rows.shift();
+      }
+
+      var skipped = 0, out = [], maxCols = 0;
+      rows.forEach(function (c) {
+        var label = (c[0] || "").trim();
+        if (!label) return;
+        if (/^(total|totals|grand total|sum|subtotal|average|avg|mean)\b/i.test(label)) { skipped++; return; }
+        var nums = [];
+        for (var i = 1; i < c.length; i++) {
+          var n = parseNum(c[i]);
+          if (!isNaN(n)) nums.push(n);
+        }
+        if (!nums.length) return;
+        maxCols = Math.max(maxCols, nums.length);
+        out.push({ label: label, vals: [nums[0] || 0, nums[1] || 0, nums[2] || 0, nums[3] || 0] });
+      });
+
+      if (!out.length) { note.textContent = "Couldn't find any label + number rows in that paste."; return; }
+
+      state.rows = out;
+      state.highlight = -1;
+
+      var used = Math.min(maxCols, MAX_SERIES);
+      var msg = [out.length + " row" + (out.length === 1 ? "" : "s")];
+
+      if (used > 1 && compareAllowed()) {
+        state.seriesCount = used;
+        $("in-seriescount").value = String(used);
+        msg.push(used + " data sets");
+      } else if (used > 1) {
+        msg.push("first number column only (" + state.type + " charts show one set)");
+      }
+      if (headers) {
+        for (var h = 0; h < MAX_SERIES; h++) {
+          var hv = (headers[h + 1] || "").trim();
+          if (hv) state.seriesNames[h] = hv;
+          $("in-series" + (h + 1)).value = state.seriesNames[h] || "";
+        }
+        if (!state.xAxis && headers[0]) {
+          state.xAxis = headers[0].trim();
+          $("in-xaxis").value = state.xAxis;
+        }
+        msg.push("named from the header row");
+      }
+      if (maxCols > MAX_SERIES) msg.push("ignored " + (maxCols - MAX_SERIES) + " extra column(s)");
+      if (skipped) msg.push("skipped " + skipped + " total/average row" + (skipped === 1 ? "" : "s"));
+
+      note.textContent = msg.join(" · ") + ".";
+      updateCompareUI(); renderRows(); render();
     }
 
     /* Carbon styles its SVG via an external stylesheet + CSS variables, which do
@@ -992,6 +1109,153 @@
           if (v && v !== "" && v !== "normal") { extra += p + ":" + v + ";"; }
         });
         el.setAttribute("style", (el.getAttribute("style") || "") + extra);
+      });
+    }
+
+    /* ---------- SVG export ----------
+       Builds a REAL vector SVG (native <text>/<rect>/<path>) by walking the card,
+       rather than wrapping HTML in a <foreignObject> — foreignObject SVGs look fine
+       in a browser but import as nothing in Figma/Illustrator. */
+    var _mctx = null;
+    function svgEsc(t) {
+      return String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+    function baselineFor(cs, top, height, sample) {
+      if (!_mctx) _mctx = document.createElement("canvas").getContext("2d");
+      var fs = parseFloat(cs.fontSize) || 12;
+      var asc = fs * 0.8, desc = fs * 0.2;
+      try {
+        _mctx.font = cs.fontStyle + " " + cs.fontWeight + " " + cs.fontSize + " " + cs.fontFamily;
+        var m = _mctx.measureText(sample || "Mg");
+        if (m.fontBoundingBoxAscent) {
+          asc = m.fontBoundingBoxAscent;
+          desc = m.fontBoundingBoxDescent || desc;
+        }
+      } catch (e) {}
+      return top + (height - (asc + desc)) / 2 + asc;
+    }
+    function rotationOf(cs) {
+      var t = cs.transform;
+      if (!t || t === "none") return 0;
+      var m = t.match(/matrix\(([^)]+)\)/);
+      if (!m) return 0;
+      var p = m[1].split(",").map(parseFloat);
+      return Math.round(Math.atan2(p[1], p[0]) * 180 / Math.PI);
+    }
+    // Illustrator (and some other tools) ignore presentation properties that live
+    // only in a CSS `style` string — notably text-anchor, which is what right-aligns
+    // the axis numbers. Re-state them as real XML attributes so they always apply.
+    function svgPresentationAttrs(root) {
+      var props = ["fill", "fill-opacity", "stroke", "stroke-width", "stroke-opacity",
+                   "opacity", "font-family", "font-size", "font-weight", "text-anchor"];
+      Array.prototype.forEach.call(root.querySelectorAll("svg *"), function (el) {
+        var cs = window.getComputedStyle(el);
+        props.forEach(function (p) {
+          var v = cs.getPropertyValue(p);
+          if (v && v !== "" && v !== "normal" && v !== "auto") {
+            try { el.setAttribute(p, v); } catch (e) {}
+          }
+        });
+      });
+    }
+    function cardToSvg() {
+      var card = $("card"), holder = $("chart-holder");
+      if (card.querySelector("svg")) {
+        alignCartesianOverlays(holder);
+        inlineChartStyles(holder);   // same fix the PNG needs: concrete fills
+        svgPresentationAttrs(holder);
+      }
+      var cb = card.getBoundingClientRect();
+      var W = Math.round(cb.width), H = Math.round(cb.height);
+      var parts = ['<rect x="0" y="0" width="' + W + '" height="' + H + '" fill="#F3F3F3"/>'];
+
+      function emitText(node, cs) {
+        var txt = node.textContent.replace(/\s+/g, " ").trim();
+        if (!txt) return;
+        // honour CSS text-transform — the DOM text is untransformed
+        var tt = cs.textTransform;
+        if (tt === "uppercase") txt = txt.toUpperCase();
+        else if (tt === "lowercase") txt = txt.toLowerCase();
+        else if (tt === "capitalize") txt = txt.replace(/\b\w/g, function (m) { return m.toUpperCase(); });
+        var range = document.createRange();
+        range.selectNodeContents(node);
+        var r = range.getBoundingClientRect();
+        if (!r.width && !r.height) return;
+        var ang = rotationOf(cs);
+        var ls = (cs.letterSpacing && cs.letterSpacing !== "normal")
+          ? ' letter-spacing="' + parseFloat(cs.letterSpacing) + '"' : "";
+        var common = ' font-family="' + svgEsc(cs.fontFamily) + '" font-size="' +
+          parseFloat(cs.fontSize) + '" font-weight="' + cs.fontWeight +
+          '" fill="' + cs.color + '"' + ls;
+        var x, y, extra = "";
+        if (ang) {
+          x = r.left + r.width / 2 - cb.left;
+          y = r.top + r.height / 2 - cb.top;
+          extra = ' text-anchor="middle" dominant-baseline="central" transform="rotate(' +
+            ang + " " + x.toFixed(1) + " " + y.toFixed(1) + ')"';
+        } else {
+          x = r.left - cb.left;
+          y = baselineFor(cs, r.top - cb.top, r.height, txt);
+        }
+        parts.push('<text x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '"' +
+          common + extra + ">" + svgEsc(txt) + "</text>");
+      }
+
+      (function walk(el) {
+        var cs = window.getComputedStyle(el);
+        if (cs.display === "none" || cs.visibility === "hidden" || parseFloat(cs.opacity) === 0) return;
+        var tag = el.tagName.toLowerCase();
+        var r = el.getBoundingClientRect();
+
+        if (tag === "svg") {                       // native chart art — keep as vectors
+          var c = el.cloneNode(true);
+          c.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+          c.setAttribute("width", Math.round(r.width));
+          c.setAttribute("height", Math.round(r.height));
+          parts.push('<g transform="translate(' + (r.left - cb.left).toFixed(1) + "," +
+            (r.top - cb.top).toFixed(1) + ')">' + c.outerHTML + "</g>");
+          return;
+        }
+        if (tag === "img") return;
+
+        var bg = cs.backgroundColor;
+        if (el !== card && bg && bg !== "rgba(0, 0, 0, 0)" && bg !== "transparent" &&
+            r.width > 0 && r.height > 0) {
+          parts.push('<rect x="' + (r.left - cb.left).toFixed(1) + '" y="' +
+            (r.top - cb.top).toFixed(1) + '" width="' + r.width.toFixed(1) + '" height="' +
+            r.height.toFixed(1) + '" rx="' + (parseFloat(cs.borderRadius) || 0) +
+            '" fill="' + bg + '"/>');
+        }
+
+        Array.prototype.forEach.call(el.childNodes, function (n) {
+          if (n.nodeType === 3) emitText(n, cs);
+        });
+        Array.prototype.forEach.call(el.children, walk);
+      })(card);
+
+      return '<svg xmlns="http://www.w3.org/2000/svg" width="' + W + '" height="' + H +
+        '" viewBox="0 0 ' + W + " " + H + '">' + parts.join("") + "</svg>";
+    }
+
+    function downloadSvg() {
+      var note = $("export-note");
+      note.textContent = "Building SVG…";
+      var fontsReady = document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve();
+      fontsReady.then(function () {
+        var svg = cardToSvg();
+        var blob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement("a");
+        var safe = (state.title || "gather-signal-infographic")
+          .toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+        a.download = (safe || "gather-signal-infographic") + ".svg";
+        a.href = url;
+        a.click();
+        setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+        note.textContent = "Downloaded SVG.";
+        setTimeout(function () { note.textContent = ""; }, 2500);
+      }).catch(function (e) {
+        note.textContent = "SVG export failed: " + (e && e.message ? e.message : e);
       });
     }
 
@@ -1068,16 +1332,23 @@
       });
 
       // comparison controls
-      $("in-compare").onchange = function () {
-        state.compare = this.checked;
-        if (state.compare) state.highlight = -1;
-        updateCompareUI();
-        renderRows(); render();
+      $("in-seriescount").onchange = function () {
+        state.seriesCount = parseInt(this.value, 10) || 1;
+        if (state.seriesCount > 1) state.highlight = -1;
+        if (state.seriesHighlight >= state.seriesCount) state.seriesHighlight = -1;
+        updateCompareUI(); renderRows(); render();
       };
-      $("in-series1").oninput = function () { state.series1 = this.value; render(); };
-      $("in-series2").oninput = function () { state.series2 = this.value; render(); };
-      $("in-series1").value = state.series1;
-      $("in-series2").value = state.series2;
+      for (var si = 1; si <= 4; si++) {
+        (function (si) {
+          var el = $("in-series" + si);
+          el.value = state.seriesNames[si - 1] || "";
+          el.oninput = function () { state.seriesNames[si - 1] = this.value; render(); };
+          $("hl-series" + si).onclick = function () {
+            state.seriesHighlight = (state.seriesHighlight === si - 1) ? -1 : si - 1;
+            updateCompareUI(); render();
+          };
+        })(si);
+      }
 
       $("in-cat").oninput = function () { state.cat = this.value; render(); };
       $("in-title").oninput = function () { state.title = this.value; render(); };
@@ -1088,10 +1359,11 @@
       /* wordmark toggle removed — the wordmark is always stamped on export */
 
       $("add-row").onclick = function () {
-        state.rows.push({ label: "New", value: 0 }); renderRows(); render();
+        state.rows.push({ label: "New", vals: [0, 0, 0, 0] }); renderRows(); render();
       };
       $("apply-paste").onclick = applyPaste;
       $("download").onclick = download;
+      $("download-svg").onclick = downloadSvg;
 
       // seed inputs from state
       $("in-title").value = state.title;
@@ -1102,12 +1374,6 @@
       fitPreview();
       window.addEventListener("resize", fitPreview);
 
-      // wordmark-missing note
-      setTimeout(function () {
-        if ($("c-wordmark").dataset.missing === "1") {
-          $("export-note").textContent = "Note: add your wordmark PNG at assets/signal-wordmark-black.png.";
-        }
-      }, 800);
     }
 
     if (document.readyState === "loading") {
