@@ -546,7 +546,7 @@
 
         var lab = document.createElement("input");
         lab.type = "text"; lab.value = r.label; lab.placeholder = "Label";
-        lab.oninput = function () { state.rows[i].label = lab.value; render(); };
+        lab.oninput = function () { state.rows[i].label = lab.value; renderSoon(); };
         row.appendChild(lab);
 
         for (var k = 0; k < n; k++) {
@@ -558,7 +558,7 @@
             if (cmp) val.title = sName(k);
             val.oninput = function () {
               var num = parseFloat(val.value.replace(/[^0-9.\-]/g, ""));
-              state.rows[i].vals[k] = isNaN(num) ? 0 : num; render();
+              state.rows[i].vals[k] = isNaN(num) ? 0 : num; renderSoon();
             };
             row.appendChild(val);
           })(k);
@@ -672,6 +672,7 @@
         legend: { enabled: false },
         color: { scale: colorScaleByLabel() },
         toolbar: { enabled: false },
+        animations: false,   // no sweep-in on every re-render
         height: "460px",
         grid: { x: { enabled: false } }
       };
@@ -691,6 +692,7 @@
         color: { scale: { "Series": ORANGE } },
         points: { radius: 4 },
         toolbar: { enabled: false },
+        animations: false,   // no sweep-in on every re-render
         height: "460px"
       };
       var Cls = isArea ? window.Charts.AreaChart : window.Charts.LineChart;
@@ -724,6 +726,7 @@
         legend: fullLegend(),
         color: { scale: seriesColorScale() },
         toolbar: { enabled: false },
+        animations: false,   // no sweep-in on every re-render
         height: "460px",
         grid: { x: { enabled: false } }
       };
@@ -742,6 +745,7 @@
         color: { scale: seriesColorScale() },
         points: { radius: 4 },
         toolbar: { enabled: false },
+        animations: false,   // no sweep-in on every re-render
         height: "460px"
       };
       return { Cls: window.Charts.LineChart, config: { data: data, options: options } };
@@ -863,8 +867,9 @@
     }
 
     /* ---------- master render ---------- */
-    function render() {
-      // text bits
+    // Text that lives on the card only — updating it never touches the chart,
+    // so typing a title/subtitle/source causes no redraw at all.
+    function renderText() {
       $("c-cat").textContent = state.cat;
       $("c-cat").style.display = state.cat ? "block" : "none";
       $("c-title").textContent = state.title;
@@ -873,7 +878,20 @@
       $("c-subtitle").style.display = state.subtitle ? "block" : "none";
       $("c-source").innerHTML = state.source ? linkifySource(state.source) : "";
       $("c-wordmark").className = "wordmark" + (state.wordmark ? "" : " hidden");
+    }
 
+    // Re-render the chart no sooner than 280ms after the last keystroke, so the
+    // preview stays still while you type instead of rebuilding on every character.
+    var _redrawTimer = null;
+    function renderSoon() {
+      renderText();
+      clearTimeout(_redrawTimer);
+      _redrawTimer = setTimeout(render, 280);
+    }
+
+    function render() {
+      clearTimeout(_redrawTimer);
+      renderText();
       var holder = $("chart-holder");
       var stat = $("stat");
 
@@ -901,6 +919,19 @@
         return;
       }
       holder.style.paddingTop = "";
+
+      // Bar / line / area are drawn by the Carbon library. If it failed to load,
+      // say so plainly instead of leaving an empty card. (Pie, donut and stat are
+      // drawn by this file, so they keep working.)
+      if (!window.Charts) {
+        var warn = document.createElement("div");
+        warn.style.cssText = "padding:40px 0;font:400 15px Arial,sans-serif;color:#980000;line-height:1.55;";
+        warn.textContent = "The chart library didn\u2019t load, so bar, line and area can\u2019t draw. " +
+          "Open this page from your published URL \u2014 or, if you\u2019re opening index.html on your " +
+          "computer, keep it in the same folder as vendor/ and fonts/. Pie, donut and stat still work.";
+        holder.appendChild(warn);
+        return;
+      }
 
       var cmp = comparing();
       var built;
@@ -1076,14 +1107,22 @@
       if (headers) {
         for (var h = 0; h < MAX_SERIES; h++) {
           var hv = (headers[h + 1] || "").trim();
-          if (hv) state.seriesNames[h] = hv;
-          $("in-series" + (h + 1)).value = state.seriesNames[h] || "";
+          state.seriesNames[h] = hv;                       // blank if that column had no header
+          $("in-series" + (h + 1)).value = hv;
         }
         if (!state.xAxis && headers[0]) {
           state.xAxis = headers[0].trim();
           $("in-xaxis").value = state.xAxis;
         }
-        msg.push("named from the header row");
+        msg.push("sets named from the header row");
+      } else if (used > 1) {
+        // No header row: clear any names left over from a previous paste rather than
+        // silently mislabelling this data with the last paste's headings.
+        for (var h2 = 0; h2 < MAX_SERIES; h2++) {
+          state.seriesNames[h2] = "";
+          $("in-series" + (h2 + 1)).value = "";
+        }
+        msg.push("no header row found, so the sets are unnamed — add a header row, or name them above");
       }
       if (maxCols > MAX_SERIES) msg.push("ignored " + (maxCols - MAX_SERIES) + " extra column(s)");
       if (skipped) msg.push("skipped " + skipped + " total/average row" + (skipped === 1 ? "" : "s"));
@@ -1342,7 +1381,7 @@
         (function (si) {
           var el = $("in-series" + si);
           el.value = state.seriesNames[si - 1] || "";
-          el.oninput = function () { state.seriesNames[si - 1] = this.value; render(); };
+          el.oninput = function () { state.seriesNames[si - 1] = this.value; renderSoon(); };
           $("hl-series" + si).onclick = function () {
             state.seriesHighlight = (state.seriesHighlight === si - 1) ? -1 : si - 1;
             updateCompareUI(); render();
@@ -1350,12 +1389,12 @@
         })(si);
       }
 
-      $("in-cat").oninput = function () { state.cat = this.value; render(); };
-      $("in-title").oninput = function () { state.title = this.value; render(); };
-      $("in-subtitle").oninput = function () { state.subtitle = this.value; render(); };
-      $("in-xaxis").oninput = function () { state.xAxis = this.value; render(); };
-      $("in-yaxis").oninput = function () { state.yAxis = this.value; render(); };
-      $("in-source").oninput = function () { state.source = this.value; render(); };
+      $("in-cat").oninput = function () { state.cat = this.value; renderText(); };
+      $("in-title").oninput = function () { state.title = this.value; renderText(); };
+      $("in-subtitle").oninput = function () { state.subtitle = this.value; renderText(); };
+      $("in-xaxis").oninput = function () { state.xAxis = this.value; renderSoon(); };
+      $("in-yaxis").oninput = function () { state.yAxis = this.value; renderSoon(); };
+      $("in-source").oninput = function () { state.source = this.value; renderText(); };
       /* wordmark toggle removed — the wordmark is always stamped on export */
 
       $("add-row").onclick = function () {
